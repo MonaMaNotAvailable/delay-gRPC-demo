@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package demo;
+
+// The recommendation service definition.
+service RecommendationService {
+    rpc Recommend (RecommendationRequest) returns (RecommendationResponse);
+}
+
+// The restaurant catalog service definition.
+service RestaurantCatalogService {
+    // Fetch restaurant data
+    rpc GetRestaurants (RestaurantRequest) returns (RestaurantResponse);
+}
+
+// The request message containing the user's ID.
+message RecommendationRequest {
+    string user_id = 1;
+}
+
+// The response message containing the recommendations.
+message RecommendationResponse {
+    repeated string recommendations = 1;
+}
+
+// The request message for the restaurant catalog.
+message RestaurantRequest {
+    string query = 1;
+}
+
+// The response message containing the restaurant details.
+message RestaurantResponse {
+    repeated string names = 1;
+}
