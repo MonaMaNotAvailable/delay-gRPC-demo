@@ -4,6 +4,7 @@ import services_pb2
 import services_pb2_grpc
 import logging
 from typing import Callable, Awaitable
+import time
 
 class ClientSideDelayInterceptor(grpc.aio.UnaryUnaryClientInterceptor):
     def __init__(self, delay_ms: int, service_ids: list[str]) -> None:
@@ -30,14 +31,22 @@ class ClientSideDelayInterceptor(grpc.aio.UnaryUnaryClientInterceptor):
 async def handle_recommendation(stub):
     service_id = "recommendationService"
     metadata = grpc.aio.Metadata(("service-id", service_id),)
+    start_time = time.time()
     response = await stub.Recommend(services_pb2.RecommendationRequest(user_id='1'), metadata = metadata)
+    end_time = time.time()
+    elapsed_time = end_time - start_time
     print("Recommendations: ", response.recommendations)
+    print(f"Request took approximately {elapsed_time:.6f} seconds.")
 
 async def handle_restaurant(stub):
     service_id = "restaurantService"
     metadata = grpc.aio.Metadata(("service-id", service_id),)
+    start_time = time.time()
     response = await stub.GetRestaurants(services_pb2.RestaurantRequest(query=''), metadata = metadata)
+    end_time = time.time()
+    elapsed_time = end_time - start_time
     print("Restaurants: ", response.names)
+    print(f"Request took approximately {elapsed_time:.6f} seconds.")
 
 async def run():
     interceptors = [
