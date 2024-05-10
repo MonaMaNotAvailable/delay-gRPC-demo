@@ -7,6 +7,7 @@ from typing import Callable, Awaitable
 import time
 import matplotlib.pyplot as plt
 import numpy as np
+import matplotlib as mpl
 
 delaySeconds = 0.0 #0.001
 
@@ -29,10 +30,10 @@ class ClientSideDelayInterceptor(grpc.aio.UnaryUnaryClientInterceptor):
 
         if service_id in self.service_ids:
             # print(f"Introducing delay after receiving response for service {service_id} by {self.delay_ms} seconds")
-            start_sleep_time = time.perf_counter()
+            # start_sleep_time = time.perf_counter()
             await asyncio.sleep(self.delay_ms)  # Introduce an asynchronous delay after receiving the response
-            end_sleep_time = time.perf_counter()
-            actual_delay = end_sleep_time - start_sleep_time
+            # end_sleep_time = time.perf_counter()
+            # actual_delay = end_sleep_time - start_sleep_time
             # print(f"Actual delay for {service_id}: {actual_delay:.6f} seconds")
         return response
 
@@ -88,16 +89,52 @@ def timePlots(timings):
     start_times = np.array(start_times)
     end_times = np.array(end_times)
 
-    plt.figure(figsize=(15, 3))
+    plt.figure(figsize=(15, 4))
     plt.barh(labels, end_times - start_times, left=start_times, color='violet', height=0.25)
     # plot theoretical delay on top
-    # delay_end_time = end_times[list(labels).index("recommendationService")]
-    # plt.barh("recommendationService", delaySeconds*0.6, left=delay_end_time - delaySeconds*0.6, color='red', height=0.25)
+    delay_end_time = end_times[list(labels).index("recommendationService")]
+    plt.barh("recommendationService", delaySeconds*0.6, left=delay_end_time - delaySeconds*0.6, color='red', height=0.25)
     plt.xlabel('Time (seconds)')
     plt.ylabel('Services')
     plt.xlim(min(start_times)-0.0015, max(end_times)+0.0015)
     plt.title('Services Execution Timelines')
     plt.grid(True)
+    plt.show()
+
+def plotFirst(reco_ends_first, rest_ends_first, seq_reco, seq_rest):
+    mpl.rcParams.update({'font.size': 12})
+
+    # Labels and data
+    services = ['Concurrent', 'Sequential']
+    counts_reco = [reco_ends_first, seq_reco]  # Data for recommendationService
+    counts_rest = [rest_ends_first, seq_rest]  # Data for restaurantService
+
+    # Create a numpy array for the x locations for the groups
+    ind = np.arange(len(services))  # the x locations for the groups
+    width = 0.4  # the width of the bars
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    
+    # Plotting data
+    bars_reco = ax.bar(ind - width/2, counts_reco, width, label='recommendationService', color='violet')
+    bars_rest = ax.bar(ind + width/2, counts_rest, width, label='restaurantService', color='pink')
+
+    # Add some text for labels, title and custom x-axis tick labels, etc.
+    ax.set_xlabel('Execution Workflow')
+    ax.set_ylabel('Count')
+    ax.set_title('The count of the first returning service in concurrent execution of 1000 runs')
+    ax.set_xticks(ind)
+    ax.set_xticklabels(services)
+
+    # Label with the exact count above each bar
+    for bars in (bars_reco, bars_rest):
+        for bar in bars:
+            height = bar.get_height()
+            if height > 0:  # only put text if there is a height
+                ax.annotate('{}'.format(height), xy=(bar.get_x() + bar.get_width() / 2, height), xytext=(0, 3),  # vertical offset
+                            textcoords="offset points", ha='center', va='bottom')
+
+    plt.legend()
     plt.show()
 
 async def multiple_runs(mode, num_runs, delay):
@@ -142,20 +179,26 @@ if __name__ == '__main__':
             timings = asyncio.run(run('sequential', delaySeconds))
             # Generate plots
             timePlots(timings) 
-        elif mode == 2:# Concurrent with/o delays
-            output_nodelay = asyncio.run(multiple_runs('concurrent', 10, 0.0))
-            print("Concurrent No Delay", output_nodelay)
-            output_delay = asyncio.run(multiple_runs('concurrent', 10, 0.01))
-            print("Concurrent With Delay", output_delay)
-            actual_avg_delay = float(output_delay.get("average_reco_time")) - float(output_nodelay.get("average_reco_time"))
-            print("The actual average delay is", actual_avg_delay)
-        elif mode == 3:# Sequential with/o delays
-            output_nodelay = asyncio.run(multiple_runs('sequential', 40, 0.0))
-            print("Sequential No Delay", output_nodelay)
-            output_delay = asyncio.run(multiple_runs('sequential', 40, 0.01))
-            print("Sequential With Delay", output_delay)
-            actual_avg_delay = float(output_delay.get("average_reco_time")) - float(output_nodelay.get("average_reco_time"))
-            print("The actual average delay is", actual_avg_delay)
+        elif mode == 2:
+            runs = 10
+            # Concurrent with/o delays
+            con_output_nodelay = asyncio.run(multiple_runs('concurrent', runs, 0.0))
+            print("Concurrent No Delay", con_output_nodelay)
+            con_output_delay = asyncio.run(multiple_runs('concurrent', runs, 0.01))
+            print("Concurrent With Delay", con_output_delay)
+            con_actual_avg_delay = float(con_output_delay.get("average_reco_time")) - float(con_output_nodelay.get("average_reco_time"))
+            print("The actual average delay in concurrent execution is", con_actual_avg_delay)
+            # Sequential with/o delays
+            seq_output_nodelay = asyncio.run(multiple_runs('sequential', runs, 0.0))
+            print("Sequential No Delay", seq_output_nodelay)
+            seq_output_delay = asyncio.run(multiple_runs('sequential', runs, 0.01))
+            print("Sequential With Delay", seq_output_delay)
+            seq_actual_avg_delay = float(seq_output_delay.get("average_reco_time")) - float(seq_output_nodelay.get("average_reco_time"))
+            print("The actual average delay in sequential execution is", seq_actual_avg_delay)
+            # plotFirst(con_output_nodelay.get("reco_ends_first"), 
+            #           con_output_nodelay.get("rest_ends_first"),
+            #           seq_output_nodelay.get("reco_ends_first"), 
+            #           seq_output_nodelay.get("rest_ends_first"))
         else:
             raise ValueError("Invalid Input!!! Please choose 0 for concurrent or 1 for sequential mode!")
     except ValueError as e:
