@@ -168,16 +168,39 @@ async def multiple_runs(mode, num_runs, delay):
         "rest_ends_first": rest_first
     }
 
+async def multiple_delays(mode, delay):
+    # Initialize lists to hold timing data
+    reco_times = []
+    rest_times = []
+    delays = np.arange(0, delay, 0.001)
+
+    for i in delays:
+        result = await run(mode, i)
+        reco_data = next(item for item in result if item[0] == "recommendationService")
+        rest_data = next(item for item in result if item[0] == "restaurantService")
+        reco_times.append(reco_data[2] - reco_data[1])  # reco end time - reco start time
+        rest_times.append(rest_data[2] - rest_data[1])  # rest end time - rest start time
+    
+    plt.figure(figsize=(10, 5))
+    plt.scatter(delays, reco_times, c='violet', label='Recommendation Service')
+    plt.plot(delays, reco_times, 'purple', alpha=0.3)
+    plt.scatter(delays, rest_times, c='pink', label='Restaurant Service')
+    plt.plot(delays, rest_times, 'pink', alpha=0.3)
+    plt.title(f'Service response times in {mode} mode')
+    plt.xlabel('Delay (s)')
+    plt.ylabel('Response Time (s)')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
 if __name__ == '__main__':
     try:
         mode = int(input("Select a mode (0 -> concurrent, 1 -> sequential): "))
         if mode == 0:
             timings = asyncio.run(run('concurrent', delaySeconds))
-            # Generate plots
             timePlots(timings) 
         elif mode == 1:
             timings = asyncio.run(run('sequential', delaySeconds))
-            # Generate plots
             timePlots(timings) 
         elif mode == 2:
             runs = 10
@@ -199,6 +222,38 @@ if __name__ == '__main__':
             #           con_output_nodelay.get("rest_ends_first"),
             #           seq_output_nodelay.get("reco_ends_first"), 
             #           seq_output_nodelay.get("rest_ends_first"))
+        elif mode == 3: #overhead
+            asyncio.run(multiple_delays('concurrent',0.1))
+            asyncio.run(multiple_delays('sequential',0.1))
+        elif mode == 4: #precision
+            run_times = np.arange(0, 30, 1)
+            con_delays = []
+            seq_delays = []
+
+            for runs in run_times:
+                # Concurrent with/o delays
+                con_output_nodelay = asyncio.run(multiple_runs('concurrent', runs, 0.0))
+                con_output_delay = asyncio.run(multiple_runs('concurrent', runs, 0.01))
+                con_actual_avg_delay = float(con_output_delay.get("average_reco_time")) - float(con_output_nodelay.get("average_reco_time"))
+                con_delays.append(con_actual_avg_delay)
+                # Sequential with/o delays
+                seq_output_nodelay = asyncio.run(multiple_runs('sequential', runs, 0.0))
+                seq_output_delay = asyncio.run(multiple_runs('sequential', runs, 0.01))
+                seq_actual_avg_delay = float(seq_output_delay.get("average_reco_time")) - float(seq_output_nodelay.get("average_reco_time"))
+                seq_delays.append(seq_actual_avg_delay)
+            
+            plt.figure(figsize=(10, 5))
+            plt.scatter(run_times, con_delays, c='violet')
+            plt.plot(run_times, con_delays, 'violet', label='Concurrent Average Delay')
+            plt.scatter(run_times, seq_delays, c='pink')
+            plt.plot(run_times, seq_delays, 'pink', label='Sequential Average Delay')
+            plt.title('Average Actual Delay by Execution Type')
+            plt.xlabel('Run Times')
+            plt.ylabel('Average Delay (s)')
+            plt.legend()
+            plt.grid(True)
+            plt.show()
+
         else:
             raise ValueError("Invalid Input!!! Please choose 0 for concurrent or 1 for sequential mode!")
     except ValueError as e:
